@@ -7,6 +7,7 @@ from random import choice
 import re
 import sys
 
+from twython import Twython, TwythonStreamer
 import tweepy
 from tweepy.streaming import StreamListener
 from tweepy.utils import import_simplejson
@@ -16,6 +17,7 @@ from twisted.internet import reactor
 from twisted.application import service
 import urwid
 import yaml
+
 
 log = logging.getLogger('twitter')
 log.setLevel(logging.DEBUG)
@@ -69,27 +71,24 @@ class CLIStream(tweepy.Stream):
         super(CLIStream, self).__init__(auth, listener, async=True)
 
 
-class CLIListener(StreamListener):
-    def __init__(self, view):
+class CLIListener(TwythonStreamer):
+    def __init__(self, view, c_key, c_secret, a_key, a_secret):
         self.view = view
         self.tagmap = TagMap()
-        super(CLIListener, self).__init__()
+        super(CLIListener, self).__init__(c_key, c_secret, a_key, a_secret)
 
-    def on_data(self, raw_data):
-        data = json.loads(raw_data)
-        if type(data) == int:
-            return
-        
-        super(CLIListener, self).on_data(raw_data)
+    #def on_data(self, raw_data):
+    #    data = json.loads(raw_data)
+    #    if type(data) == int:
+    #        return
+    #    
+    #    super(CLIListener, self).on_data(raw_data)
+
+    def on_success(self, data):
+        log.info(data)
 
     def on_status(self, status):
         self._announce(status, self.tagmap)
-
-    def on_disconnect(self, status):
-        return True
-
-    def on_exception(self, exception):
-        log.error('error: %s' % exception, exc_info=True)
 
     def on_error(self, status):
         log.error('error: %s' % status, exc_info=True)
@@ -139,11 +138,18 @@ class View(object):
         with open('avian.yaml') as y:
             config = yaml.load(y)
     
-        auth = tweepy.OAuthHandler(config['consumer_key'], config['consumer_secret'])
-        auth.set_access_token(config['access_token'], config['access_token_secret'])
-        l = CLIListener(self)
-        self.stream = tweepy.Stream(auth, l, async=True)
-        reactor.callInThread(self.stream.filter,None,track=['Space Jam 2'])
+        self. stream = CLIListener(self,
+                             config['consumer_key'],
+                             config['consumer_secret'],
+                             config['access_token'],
+                             config['access_token_secret'])
+        
+        twitter = Twython(config['consumer_key'],
+                          config['consumer_secret'],
+                          config['access_token'],
+                          config['access_token_secret'])
+   
+        reactor.callInThread(self.stream.statuses.filter, track='poop')
     
         
 
